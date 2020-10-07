@@ -10,14 +10,13 @@ from getpass import getpass
     James enter the correct file location for all of the servers here. 
 '''
 def getServers():
-    '''
-    Need to modify this to whatever file James needs read
-    '''
-    f = open("servers.txt", "r")
-    servers = f.read().split()
-    f.close()
-    return servers
-
+    try:
+        response = requests.get("http://nmf.int.westgroup.com/switchmap/6500-ios/index.html")
+        soup = BeautifulSoup(response.text, 'lxml')
+        return [li.a.text.split()[0] for li in soup.findAll('li')]
+    except:
+        print("Could not get servers from URL, please check that the site is up and has not been moved")
+        exit(1)
 # Takes as input string representation of output. 
 # Gets a list of the cards that have no connections
 def getCardsWithNoConnections(output):
