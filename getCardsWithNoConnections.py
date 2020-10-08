@@ -19,15 +19,25 @@ def getServers():
 
 # Takes as input string representation of output. 
 # Gets a list of the cards that have no connections
+
+def getStatus(line):
+    if(line.find("connected") != -1):
+        return "connected"
+    elif(line.find("disabled") != -1):
+        return "disabled"
+    else:
+        return "notconnect"
+
 def getCardsWithNoConnections(output):
     output = output[output.find("Port"):]
     portConnected = {}
     output = output.strip().split('\n')[1:]
     for line in output:
+        status = getStatus(line)
         line = line.split()
-        card = line[0].split('/')[0][2]
-        status = line[-5]  # Second field is sometimes missing. Negative indexing solves this
-        if card not in portConnected or portConnected[card] == "notconnect" or (portConnected[card] == "disabled" and portConnected[card] != "notconnect"):
+        card = line[0].split('/')[0][2:]
+        if line[0].split('/')[0][:2] == "Po": continue
+        if card not in portConnected or portConnected[card] == "notconnect" or (portConnected[card] == "disabled" and status != "notconnect"):
             portConnected[card] = status
     return {k:v for (k,v) in portConnected.items() if v != "connected"}
 
@@ -62,18 +72,21 @@ def connectToSwitch(jhost, vm, server, user, pw):
         return 1       
 
 def main():
+    servers = getServers()
+    outFile = open("openCards.txt", "w")
     vm = paramiko.SSHClient()
     jhost = paramiko.SSHClient()
-    outFile = open("openCards.txt", "w")
+
     gbsuiteUser = input("Enter gbsuite User: ")
     gbsuitePass = getpass("Enter gbsuite Password:")
     if connectToJump(vm, gbsuiteUser, gbsuitePass) == 1:
         vm.close()
         exit(1)
+
     # Create ssh connection to gbsuite as jump server
     switchUser = input("Enter network switch user: ")
     switchPass = getpass("Enter network switch user password: ")
-    for server in getServers():
+    for server in servers:
         print("Now testing:", server)
         if connectToSwitch(jhost, vm, server, switchUser, switchPass) == 1:
             outFile.write("Failed at server: ", server)
@@ -83,11 +96,11 @@ def main():
         # stdout is a stream. This map converts it to a string. We also remove the first
         # we start the string at where the string Port is found to skip a security warning from the terminal
         output = "".join(map(chr, stdout.read()))
-        badCards = getCardsWithNoConnections(output)
-        for card in badCards: 
-            if badCards[card] == "disabled": outFile.write(server + " Line Card " + card + " HAS DISABLED\n")
+        for card, status in getCardsWithNoConnections(output).items(): 
+            if status == "disabled": outFile.write(server + " Line Card " + card + " HAS DISABLED\n")
             else: outFile.write(server + " Line Card " + card + "\n")
         jhost.close()
+        output = output[output.find("Port"):]
 
     jhost.close()
     vm.close()
